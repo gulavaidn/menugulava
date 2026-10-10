@@ -329,24 +329,28 @@ function valid(d){return !!(d&&Array.isArray(d.items)&&d.items.length)}
 function apply(d){try{
  var main=document.querySelector('main.wrap'),nav=document.querySelector('nav.chips .wrap');if(!main||!nav)return false;
  var secs=[].filter.call(main.children,function(n){return n.tagName==='SECTION'});if(!secs.length)return false;
+ var hdr={};secs.forEach(function(sc){var h=sc.querySelector('.sh'),t=sc.querySelector('h2');if(h&&t)hdr[t.textContent.toLowerCase()]=h.innerHTML});
  var old={};[].forEach.call(main.querySelectorAll('.card'),function(c){var sc=c.closest('section'),h2=sc&&sc.querySelector('h2'),h3=c.querySelector('h3');if(!h2||!h3)return;var im=c.querySelector('img'),dd=c.querySelector('.d');old[(h2.textContent+'|'+h3.textContent).toLowerCase()]={i:im?im.getAttribute('src'):'',d:dd?dd.textContent:''}});
  var cats=[],by={};d.items.forEach(function(it){if(!it||!it.n||!it.c||!(+it.p>0))return;var k=String(it.c);if(!by[k]){by[k]=[];cats.push(k)}by[k].push(it)});
  if(!cats.length)return false;
  var used={},html='',chips='';
  cats.forEach(function(c){var id=slug(c);while(used[id])id+='-x';used[id]=1;chips+='<a href="#'+id+'">'+esc(c)+'</a>';
-  html+='<section id="'+id+'"><div class="sh"><h2>'+esc(c)+'</h2></div><ul class="grid">'+by[c].map(function(it){
+  html+='<section id="'+id+'"><div class="sh">'+(hdr[c.toLowerCase()]||'<h2>'+esc(c)+'</h2>')+'</div><ul class="grid">'+by[c].map(function(it){
    var o=old[(c+'|'+it.n).toLowerCase()]||{},img=(typeof it.i==='string'&&it.i.indexOf('data:image/')===0)?it.i:(o.i||''),ds=(it.d!==undefined&&it.d!=='')?it.d:(o.d||'');
    return '<li class="card"><div class="ph">'+(img?'<img src="'+esc(img)+'" alt="'+esc(it.n)+'" loading="lazy">':'')+'</div><h3>'+esc(it.n)+'</h3>'+(ds?'<p class="d">'+esc(ds)+'</p>':'')+'<p class="p">Rp '+Math.round(+it.p).toLocaleString('id-ID')+'</p></li>'}).join('')+'</ul></section>'});
  secs[0].insertAdjacentHTML('beforebegin',html);secs.forEach(function(x){x.parentNode.removeChild(x)});nav.innerHTML=chips;return true}catch(e){return false}}
 function banner(){if(document.getElementById('mnu-upd'))return;var b=document.createElement('div');b.id='mnu-upd';b.setAttribute('style','position:fixed;left:12px;right:12px;bottom:84px;z-index:99;background:#222;color:#fff;border-radius:14px;padding:12px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;font:600 14px system-ui,sans-serif');b.innerHTML='<span>Menu baru tersedia.</span>';var k=document.createElement('button');k.type='button';k.textContent='Muat ulang';k.setAttribute('style','border:0;border-radius:10px;padding:8px 12px;font:700 14px system-ui,sans-serif');k.onclick=function(){location.reload()};b.appendChild(k);document.body.appendChild(b)}
-window.__mh='';
-try{var raw=localStorage.getItem(KEY);if(raw){var c0=JSON.parse(raw);if(valid(c0.d)&&apply(c0.d))window.__mh=c0.h}}catch(e){}
+var DBG=/[?&]debug=1/.test(location.search),dl=[];
+function dbg(t){if(!DBG)return;dl.push(t);var e=document.getElementById('mnu-dbg');if(!e){e=document.createElement('pre');e.id='mnu-dbg';e.setAttribute('style','position:fixed;left:8px;right:8px;top:8px;z-index:9999;background:#000c;color:#0f0;font:12px monospace;padding:10px;border-radius:10px;white-space:pre-wrap;max-height:50vh;overflow:auto');(document.body||document.documentElement).appendChild(e)}e.textContent='MENU SYNC v2\n'+dl.join('\n')}
+window.__mh='';dbg('skrip aktif');
+try{var raw=localStorage.getItem(KEY);if(raw){var c0=JSON.parse(raw);if(valid(c0.d)){var okc=apply(c0.d);dbg('cache: '+c0.d.items.length+' produk, dipakai='+okc);if(okc)window.__mh=c0.h}}else dbg('cache: kosong')}catch(e){dbg('cache error '+e.message)}
 ['pointerdown','touchstart','keydown','scroll'].forEach(function(ev){window.addEventListener(ev,function(){touched=true},{passive:true,capture:true})});
 try{var ac=window.AbortController?new AbortController():null,tm=setTimeout(function(){if(ac)ac.abort()},8000);
-fetch(FB+'/menu.json',{cache:'no-store',signal:ac?ac.signal:undefined}).then(function(r){return r.ok?r.json():null}).then(function(d){clearTimeout(tm);if(!valid(d))return;
+fetch(FB+'/menu.json',{cache:'no-store',signal:ac?ac.signal:undefined}).then(function(r){dbg('firebase HTTP '+r.status);return r.ok?r.json():null}).then(function(d){clearTimeout(tm);if(!valid(d)){dbg('data /menu kosong/tidak valid');return}dbg('firebase: '+d.items.length+' produk; kategori: '+d.items.map(function(x){return x.c}).filter(function(v,i,a){return a.indexOf(v)===i}).join(', '));
  var h=hash(JSON.stringify(d.items));try{localStorage.setItem(KEY,JSON.stringify({h:h,d:{items:d.items}}))}catch(e){}
- if(h===window.__mh)return;
- if(!touched){try{if(sessionStorage.getItem(KEY+'_rl')===h)return;sessionStorage.setItem(KEY+'_rl',h)}catch(e){}location.reload()}else banner()}).catch(function(){})}catch(e){}
+ if(h===window.__mh){dbg('sama dengan cache, tidak perlu muat ulang');return}
+ if(DBG){dbg('ada menu baru -> (mode debug: tidak otomatis muat ulang; buka tanpa ?debug=1 atau ketuk Muat ulang)');banner();return}
+ if(!touched){try{if(sessionStorage.getItem(KEY+'_rl')===h)return;sessionStorage.setItem(KEY+'_rl',h)}catch(e){}location.reload()}else banner()}).catch(function(e){dbg('fetch gagal: '+e.message)})}catch(e){dbg('error '+e.message)}
 })();
 </script>
 <script>
